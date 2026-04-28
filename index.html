@@ -3,90 +3,341 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voz Mejorada Sintetizada - Offline TTS</title>
+    <title>Voz Sintetizada Pro - Offline TTS</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+        
         :root {
-            --primary: #6366f1; --bg: #0a0a14; --surface: #12121f;
-            --surface2: #1a1a2e; --border: #2a2a4a; --text: #e2e8f0;
-            --muted: #64748b; --success: #22c55e; --warning: #f59e0b; --error: #ef4444;
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.5);
+            --bg: #05050a;
+            --surface: rgba(18, 18, 31, 0.8);
+            --surface-hover: rgba(26, 26, 46, 0.9);
+            --border: rgba(255, 255, 255, 0.1);
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --accent: #a78bfa;
         }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        
         body {
-            font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text);
-            min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem;
-            background-image: radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 50%);
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: 
+                radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 90% 90%, rgba(167, 139, 250, 0.1) 0%, transparent 40%),
+                var(--bg);
         }
-        .card {
-            background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
-            padding: 2rem; width: 100%; max-width: 560px; box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            position: relative;
         }
-        .header { text-align: center; margin-bottom: 1.5rem; }
-        .header h1 { font-size: 1.5rem; background: linear-gradient(135deg, #818cf8, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .badge { display: inline-block; background: rgba(99, 102, 241, 0.15); color: #818cf8; font-size: 0.7rem; padding: 2px 10px; border-radius: 999px; margin-bottom: 0.5rem; }
-        .field { margin-bottom: 1rem; }
-        label { display: block; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; margin-bottom: 0.4rem; }
-        select, textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 0.7rem; outline: none; }
-        textarea { min-height: 100px; resize: vertical; }
-        .sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-        button { width: 100%; padding: 0.9rem; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-        #btnSpeak { background: var(--primary); color: white; }
-        #btnSpeak:disabled { opacity: 0.5; cursor: not-allowed; }
-        #btnDownload { background: var(--surface2); color: var(--text); margin-top: 0.5rem; display: none; border: 1px solid var(--border); }
-        .status-bar { margin-top: 1rem; padding: 0.8rem; border-radius: 10px; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
-        .status-bar.loading { color: var(--warning); background: rgba(245,158,11,0.1); }
-        .status-bar.ready { color: var(--success); background: rgba(34,197,94,0.1); }
-        .status-bar.error { color: var(--error); background: rgba(239,68,68,0.1); }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-        audio { width: 100%; margin-top: 1rem; display: none; }
+
+        .glass-card {
+            background: var(--surface);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 999px;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .field {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.6rem;
+            padding-left: 4px;
+        }
+
+        select, textarea {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text);
+            padding: 0.8rem 1rem;
+            font-size: 1rem;
+            transition: all 0.2s;
+            outline: none;
+        }
+
+        select:focus, textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px var(--primary-glow);
+        }
+
+        textarea {
+            min-height: 120px;
+            line-height: 1.5;
+            resize: none;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .slider-group input {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .slider-group input::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--primary);
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        button {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        #btnSpeak {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 10px 20px -10px var(--primary-glow);
+        }
+
+        #btnSpeak:hover:not(:disabled) {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+            box-shadow: 0 15px 30px -10px var(--primary-glow);
+        }
+
+        #btnSpeak:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        #btnSpeak:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        #btnDownload {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            display: none;
+        }
+
+        #btnDownload:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--muted);
+        }
+
+        .status-area {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .status-dot::after {
+            content: '';
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0.4;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.4; }
+            50% { transform: scale(2); opacity: 0; }
+            100% { transform: scale(1); opacity: 0.4; }
+        }
+
+        .loading .status-dot { color: var(--warning); }
+        .ready .status-dot { color: var(--success); }
+        .error .status-dot { color: var(--error); }
+
+        audio {
+            width: 100%;
+            margin-top: 1.5rem;
+            height: 40px;
+            border-radius: 10px;
+            filter: invert(100%) hue-rotate(180deg) brightness(1.5);
+            display: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .controls-grid { grid-template-columns: 1fr; }
+            .glass-card { padding: 1.5rem; }
+        }
     </style>
 </head>
 <body>
-    <div class="card">
-        <div class="header">
-            <div class="badge">🔒 100% Offline</div>
-            <h1>Voz Mejorada Sintetizada</h1>
-            <p style="color: var(--muted); font-size: 0.8rem;">Motor Piper TTS + ONNX Runtime</p>
+    <div class="container">
+        <div class="glass-card">
+            <div class="header">
+                <div class="badge">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    PROCESAMIENTO OFFLINE SEGURO
+                </div>
+                <h1>Voz Sintetizada Pro</h1>
+                <p style="color: var(--muted); font-size: 0.9rem;">Motor Sherpa-ONNX + Voces Piper</p>
+            </div>
+
+            <div class="field">
+                <label>Seleccionar Voz</label>
+                <select id="voiceSelect">
+                    <option value="daniela">Daniela (Argentina - Alta Calidad)</option>
+                    <option value="claude">Claude (México - Alta Calidad)</option>
+                    <option value="test_en">Voz de Prueba (Inglés - Libritts)</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Texto a Convertir</label>
+                <textarea id="textInput" placeholder="Escribe algo aquí...">¡Hola! Estoy funcionando totalmente fuera de línea y con una calidad de voz excepcional. ¿Qué te gustaría que diga ahora?</textarea>
+            </div>
+
+            <div class="controls-grid">
+                <div class="slider-group">
+                    <label>Velocidad: <span id="valSpeed">1.0</span>x</label>
+                    <input type="range" id="lengthScale" min="0.5" max="2.0" step="0.1" value="1.0">
+                </div>
+                <div class="slider-group">
+                    <label>Variación: <span id="valNoise">0.67</span></label>
+                    <input type="range" id="noiseScale" min="0.1" max="1.5" step="0.1" value="0.67">
+                </div>
+            </div>
+
+            <div class="actions">
+                <button id="btnSpeak" disabled>
+                    <span id="btnIcon">⏳</span>
+                    <span id="btnText">Inicializando motor...</span>
+                </button>
+                <button id="btnDownload">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    Descargar Audio WAV
+                </button>
+            </div>
+
+            <audio id="player" controls></audio>
+
+            <div id="statusBar" class="status-area loading">
+                <div class="status-dot"></div>
+                <span id="statusMsg">Cargando activos locales...</span>
+            </div>
         </div>
-
-        <div class="field">
-            <label>Voz</label>
-            <select id="voiceSelect" class="voice-select">
-                <option value="daniela">Daniela (Argentina)</option>
-                <option value="claude">Claude (México)</option>
-                <option value="test_en">Voz de Prueba (Inglés)</option>
-            </select>
-        </div>
-
-        <div class="field">
-            <label>Texto</label>
-            <textarea id="textInput">Hola Héctor, ¿cómo estás? Esta es una prueba de voz profesional funcionando totalmente fuera de línea.</textarea>
-        </div>
-
-        <div class="sliders">
-            <div class="field"><label>Velocidad</label><input type="range" id="lengthScale" min="0.5" max="2" step="0.1" value="1"></div>
-            <div class="field"><label>Variación</label><input type="range" id="noiseScale" min="0.1" max="1.5" step="0.1" value="0.67"></div>
-        </div>
-
-        <button id="btnSpeak" disabled>⏳ Cargando motor...</button>
-        <audio id="player" controls></audio>
-        <button id="btnDownload">⬇ Descargar WAV</button>
-
-        <div id="statusBar" class="status-bar loading"><div class="dot"></div><span id="statusMsg">Inicializando motor...</span></div>
     </div>
 
-    <!-- Motor Sherpa-ONNX (Versión Local) -->
+    <!-- Scripts del Motor -->
     <script src="./sherpa-onnx-wasm-main-tts.js"></script>
     <script src="./sherpa-onnx-tts.js"></script>
+    
     <script>
         const VOICES = {
             daniela: {
                 model: "./daniela/es_AR-daniela-high.onnx",
-                tokens: "./daniela/es_AR-daniela-high.onnx.json"
+                config: "./daniela/es_AR-daniela-high.onnx.json"
             },
             claude: {
                 model: "./claude/es_MX-claude-high.onnx",
-                tokens: "./claude/es_MX-claude-high.onnx.json"
+                config: "./claude/es_MX-claude-high.onnx.json"
             },
             test_en: {
                 model: "en_US-libritts_r-medium.onnx",
@@ -96,8 +347,9 @@
         };
 
         let tts = null;
-
         const btn = document.getElementById('btnSpeak');
+        const btnText = document.getElementById('btnText');
+        const btnIcon = document.getElementById('btnIcon');
         const btnDl = document.getElementById('btnDownload');
         const player = document.getElementById('player');
         const statusMsg = document.getElementById('statusMsg');
@@ -105,118 +357,144 @@
         const voiceSelect = document.getElementById('voiceSelect');
         const textInput = document.getElementById('textInput');
 
+        // Actualizar etiquetas de sliders
+        document.getElementById('lengthScale').oninput = e => document.getElementById('valSpeed').textContent = e.target.value;
+        document.getElementById('noiseScale').oninput = e => document.getElementById('valNoise').textContent = e.target.value;
+
         function setStatus(msg, cls) {
-            statusBar.className = 'status-bar ' + cls;
+            statusBar.className = 'status-area ' + cls;
             statusMsg.textContent = msg;
         }
 
-        // Configurar el Módulo global antes de que se use
-        Module.onRuntimeInitialized = () => {
-            console.log("Motor WASM inicializado correctamente.");
-            initTTS();
-        };
+        // Función para convertir el JSON de Piper al formato tokens.txt de Sherpa-ONNX
+        function generateTokensFromPiperJson(piperJson) {
+            let tokensText = "";
+            const idMap = piperJson.phoneme_id_map;
+            for (const [char, ids] of Object.entries(idMap)) {
+                tokensText += `${char} ${ids[0]}\n`;
+            }
+            return tokensText;
+        }
 
         async function initTTS() {
             try {
                 btn.disabled = true;
-                setStatus('Preparando archivos de voz...', 'loading');
+                btnText.textContent = "Preparando voz...";
+                setStatus('Cargando archivos del modelo...', 'loading');
 
                 const voiceKey = voiceSelect.value;
                 const selected = VOICES[voiceKey];
-                let modelName = selected.model;
-                let tokensName = selected.tokens;
 
-                if (!selected.isInternal) {
-                    // Función para montar archivos en el sistema de archivos virtual de WASM
-                    async function mountFile(path, name) {
-                        const response = await fetch(path);
-                        const buffer = await response.arrayBuffer();
-                        const data = new Uint8Array(buffer);
-                        Module.FS_createDataFile("/", name, data, true, true, true);
-                        return name;
-                    }
+                let modelPath = '/model.onnx';
+                let tokensPath = '/tokens.txt';
 
-                    // Montamos los archivos locales en la raíz del motor
-                    modelName = await mountFile(selected.model, 'model.onnx');
-                    tokensName = await mountFile(selected.tokens, 'tokens.txt');
+                if (selected.isInternal) {
+                    modelPath = selected.model;
+                    tokensPath = selected.tokens;
+                } else {
+                    // 1. Cargar el modelo ONNX externo
+                    const modelResp = await fetch(selected.model);
+                    const modelBuffer = await modelResp.arrayBuffer();
+                    
+                    // Limpiar archivos anteriores si existen para evitar errores
+                    try { Module.FS_unlink('/model.onnx'); } catch(e) {}
+                    Module.FS_createDataFile("/", "model.onnx", new Uint8Array(modelBuffer), true, true, true);
+
+                    // 2. Cargar el JSON de Piper y generar tokens.txt
+                    const configResp = await fetch(selected.config);
+                    const piperConfig = await configResp.json();
+                    const tokensText = generateTokensFromPiperJson(piperConfig);
+                    
+                    try { Module.FS_unlink('/tokens.txt'); } catch(e) {}
+                    Module.FS_createDataFile("/", "tokens.txt", tokensText, true, true, true);
                 }
 
-                setStatus('Configurando motor...', 'loading');
+                setStatus('Configurando motor Sherpa-ONNX...', 'loading');
                 
                 const config = {
                     offlineTtsModelConfig: {
                         offlineTtsVitsModelConfig: {
-                            model: modelName,
-                            tokens: tokensName,
-                            noiseScale: 0.667,
+                            model: modelPath,
+                            tokens: tokensPath,
+                            dataDir: '/espeak-ng-data', 
+                            noiseScale: parseFloat(document.getElementById('noiseScale').value),
                             noiseScaleW: 0.8,
-                            lengthScale: 1.0,
+                            lengthScale: parseFloat(document.getElementById('lengthScale').value),
                         },
-                        numThreads: 1,
-                        debug: 1,
+                        numThreads: navigator.hardwareConcurrency || 4,
+                        debug: 0,
                         provider: 'cpu',
                     },
                     ruleFsts: '',
                     maxNumSentences: 1,
                 };
 
-                // ¡ORDE CORRECTO! (Module, config)
+                if (tts) {
+                    location.reload();
+                    return;
+                }
+
                 tts = createOfflineTts(Module, config);
 
                 btn.disabled = false;
-                btn.textContent = '🎙 Sintetizar y Escuchar';
-                setStatus('Motor listo ✓', 'ready');
+                btnText.textContent = 'Sintetizar y Escuchar';
+                btnIcon.textContent = '🎙️';
+                setStatus('Motor listo y optimizado ✓', 'ready');
             } catch (err) {
-                setStatus('Error de motor', 'error');
-                console.error("Fallo crítico en Sherpa-ONNX:", err);
+                setStatus('Error crítico de motor', 'error');
+                btnText.textContent = "Error al cargar";
+                btnIcon.textContent = '❌';
+                console.error("Fallo en Sherpa-ONNX:", err);
             }
         }
 
-        voiceSelect.onchange = () => {
-            // Recargar para limpiar el FS virtual y evitar conflictos
-            location.reload();
-        };
+        voiceSelect.onchange = initTTS;
 
         btn.onclick = async () => {
             const text = textInput.value.trim();
             if (!text || !tts) return;
 
             btn.disabled = true;
-            setStatus('Sintetizando...', 'loading');
+            btnText.textContent = 'Sintetizando...';
+            setStatus('Procesando audio...', 'loading');
+
+            await new Promise(r => setTimeout(r, 50));
 
             try {
-                const audio = tts.generate({ text: text, sid: 0 });
+                const startTime = performance.now();
                 
-                const sampleRate = audio.sampleRate;
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
-                const buffer = audioContext.createBuffer(1, audio.samples.length, sampleRate);
-                buffer.getChannelData(0).set(audio.samples);
+                const audio = tts.generate({ 
+                    text: text, 
+                    sid: 0,
+                    speed: 1.0 / parseFloat(document.getElementById('lengthScale').value)
+                });
+                
+                const endTime = performance.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
 
-                const source = audioContext.createBufferSource();
-                source.buffer = buffer;
-                source.connect(audioContext.destination);
-                source.start();
-                
+                const sampleRate = audio.sampleRate;
                 const wavBlob = exportWav(audio.samples, sampleRate);
                 const url = URL.createObjectURL(wavBlob);
+                
                 player.src = url;
                 player.style.display = 'block';
                 player.play();
 
-                btnDl.style.display = 'block';
+                btnDl.style.display = 'flex';
                 btnDl.onclick = () => {
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'voz_generada.wav';
+                    a.download = `voz_${voiceSelect.value}_${Date.now()}.wav`;
                     a.click();
                 };
 
-                setStatus('✓ Audio generado', 'ready');
+                setStatus(`Generado en ${duration}s ✓`, 'ready');
             } catch (e) {
                 console.error(e);
-                setStatus('Error en síntesis', 'error');
+                setStatus('Error en la síntesis', 'error');
             } finally {
                 btn.disabled = false;
+                btnText.textContent = 'Sintetizar y Escuchar';
             }
         };
 
@@ -225,12 +503,19 @@
             const view = new DataView(buffer);
             const writeString = (off, s) => { for (let i=0; i<s.length; i++) view.setUint8(off+i, s.charCodeAt(i)); };
             
-            writeString(0, 'RIFF'); view.setUint32(4, 36 + samples.length * 2, true);
-            writeString(8, 'WAVE'); writeString(12, 'fmt '); view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-            view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
-            view.setUint16(32, 2, true); view.setUint16(34, 16, true);
-            writeString(36, 'data'); view.setUint32(40, samples.length * 2, true);
+            writeString(0, 'RIFF'); 
+            view.setUint32(4, 36 + samples.length * 2, true);
+            writeString(8, 'WAVE'); 
+            writeString(12, 'fmt '); 
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); 
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true); 
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true); 
+            view.setUint16(34, 16, true);
+            writeString(36, 'data'); 
+            view.setUint32(40, samples.length * 2, true);
 
             for (let i = 0, offset = 44; i < samples.length; i++, offset += 2) {
                 let s = Math.max(-1, Math.min(1, samples[i]));
@@ -239,13 +524,12 @@
             return new Blob([buffer], { type: 'audio/wav' });
         }
 
-        // Manejo robusto de la inicialización
-        if (Module.calledRun) {
-            initTTS();
-        } else {
-            Module.onRuntimeInitialized = () => {
+        if (typeof Module !== 'undefined') {
+            if (Module.calledRun) {
                 initTTS();
-            };
+            } else {
+                Module.onRuntimeInitialized = () => initTTS();
+            }
         }
     </script>
 </body>
