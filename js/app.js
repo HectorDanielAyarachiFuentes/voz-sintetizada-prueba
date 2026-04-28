@@ -1,22 +1,37 @@
+// ── Configuración de Voces ─────────────────────────────────────────────────
 const VOICES = {
-    daniela: {
-        model: "./daniela/es_AR-daniela-high.onnx",
-        config: "./daniela/es_AR-daniela-high.onnx.json"
-    },
+    // Modelos Piper oficiales de sherpa-onnx (comment: "piper", has_espeak: 1)
+    // Usan la API de Piper con espeak integrado
     claude: {
-        model: "./claude/es_AR-daniela-high.onnx",
-        tokens: "./claude/tokens.txt"
+        label: 'Claude (México - Alta Calidad)',
+        model: "./claude/es_MX-claude-high.onnx",
+        tokens: "./claude/tokens.txt",
+        isPiper: true,
+        dataDir: './espeak-ng-data',
     },
+    daniela: {
+        label: 'Daniela (Argentina - Alta Calidad)',
+        model: "./daniela/es_AR-daniela-high.onnx",
+        tokens: "./daniela/tokens.txt",
+        isPiper: true,
+        dataDir: './espeak-ng-data',
+    },
+    // Modelo Meta MMS (comment: "mms", frontend: "characters")
     mms_spa: {
+        label: 'Español (Meta MMS)',
         model: "./vits-mms-spa/model.onnx",
         tokens: "./vits-mms-spa/tokens.txt",
-        dataDir: "",
-        isInternal: false
+        isPiper: false,
+        dataDir: '',
     },
+    // Modelo en inglés (preempaquetado en el WASM .data)
     test_en: {
+        label: 'Voz de Prueba (Inglés - Libritts)',
         model: "./en_US-libritts_r-medium.onnx",
         tokens: "./tokens.txt",
-        isInternal: true
+        isPiper: false,
+        dataDir: './espeak-ng-data',
+        isInternal: true,
     }
 };
 
@@ -40,16 +55,7 @@ function setStatus(msg, cls) {
     statusMsg.textContent = msg;
 }
 
-// Función para convertir el JSON de Piper al formato tokens.txt de Sherpa-ONNX
-function generateTokensFromPiperJson(piperJson) {
-    let tokensText = "";
-    const idMap = piperJson.phoneme_id_map;
-    for (const [char, ids] of Object.entries(idMap)) {
-        tokensText += `${char} ${ids[0]}\n`;
-    }
-    return tokensText;
-}
-
+// ── Inicialización del Motor TTS ───────────────────────────────────────────
 async function initTTS() {
     try {
         btn.disabled = true;
@@ -59,49 +65,59 @@ async function initTTS() {
         const voiceKey = voiceSelect.value;
         const selected = VOICES[voiceKey];
 
-        let modelPath = '/model.onnx';
-        let tokensPath = '/tokens.txt';
+        let modelPath, tokensPath;
 
         if (selected.isInternal) {
+            // Preempaquetado en el WASM .data file — usar rutas tal como están
             modelPath = selected.model;
             tokensPath = selected.tokens;
         } else {
+            // Cargar desde disco al VFS con nombre único por voz
             modelPath = '/model_' + voiceKey + '.onnx';
             tokensPath = '/tokens_' + voiceKey + '.txt';
 
-            // 1. Cargar el modelo ONNX externo
-            const modelResp = await fetch(selected.model);
-            const modelBuffer = await modelResp.arrayBuffer();
-            
+            setStatus('Descargando modelo (' + selected.label + ')...', 'loading');
+
+            const [modelResp, tokensResp] = await Promise.all([
+                fetch(selected.model),
+                fetch(selected.tokens)
+            ]);
+
+            if (!modelResp.ok) throw new Error(`No se pudo cargar el modelo: ${selected.model}`);
+            if (!tokensResp.ok) throw new Error(`No se pudo cargar tokens: ${selected.tokens}`);
+
+            // Cargar AMBOS como ArrayBuffer para preservar los bytes UTF-8 exactos
+            // (evita corrupción de caracteres IPA multi-byte al pasar por JS string)
+            const [modelBuffer, tokensBuffer] = await Promise.all([
+                modelResp.arrayBuffer(),
+                tokensResp.arrayBuffer()
+            ]);
+
+            // Escribir al VFS como Uint8Array (bytes exactos, sin re-codificar)
             try { Module.FS_unlink(modelPath); } catch(e) {}
             Module.FS_createDataFile("/", modelPath.substring(1), new Uint8Array(modelBuffer), true, true, true);
 
-            // 2. Cargar Tokens (ya sea desde un .txt directo o generando desde un .json)
-            let tokensText = "";
-            if (selected.tokens) {
-                const tokensResp = await fetch(selected.tokens);
-                tokensText = await tokensResp.text();
-            } else if (selected.config) {
-                const configResp = await fetch(selected.config);
-                const piperConfig = await configResp.json();
-                tokensText = generateTokensFromPiperJson(piperConfig);
-            }
-            
             try { Module.FS_unlink(tokensPath); } catch(e) {}
-            Module.FS_createDataFile("/", tokensPath.substring(1), tokensText, true, true, true);
+            Module.FS_createDataFile("/", tokensPath.substring(1), new Uint8Array(tokensBuffer), true, true, true);
+
         }
 
         setStatus('Configurando motor Sherpa-ONNX...', 'loading');
-        
+
+        const lengthScale = parseFloat(document.getElementById('lengthScale').value);
+        const dataDir = selected.dataDir;
+
+        // Construir config según tipo de modelo
         const config = {
             offlineTtsModelConfig: {
                 offlineTtsVitsModelConfig: {
                     model: modelPath,
+                    lexicon: '',
                     tokens: tokensPath,
-                    dataDir: './espeak-ng-data', 
+                    dataDir: dataDir,
                     noiseScale: 0.667,
                     noiseScaleW: 0.8,
-                    lengthScale: parseFloat(document.getElementById('lengthScale').value),
+                    lengthScale: lengthScale,
                 },
                 numThreads: 1,
                 debug: 0,
@@ -111,20 +127,15 @@ async function initTTS() {
             maxNumSentences: 1,
         };
 
-        console.log("Iniciando TTS con:", { modelPath, tokensPath, voiceKey });
-        
+        console.log("Iniciando TTS con:", { modelPath, tokensPath, voiceKey, dataDir, isPiper: selected.isPiper });
+
         if (tts) {
-            console.log("Reiniciando motor...");
+            // Si ya hay un motor cargado, recargar la página para limpiarlo
             location.reload();
             return;
         }
 
-        try {
-            tts = createOfflineTts(Module, config);
-        } catch (innerErr) {
-            console.error("Excepción interna en createOfflineTts:", innerErr);
-            throw innerErr;
-        }
+        tts = createOfflineTts(Module, config);
 
         btn.disabled = false;
         btnText.textContent = 'Sintetizar y Escuchar';
@@ -140,6 +151,7 @@ async function initTTS() {
 
 voiceSelect.onchange = initTTS;
 
+// ── Síntesis de Audio ──────────────────────────────────────────────────────
 btn.onclick = async () => {
     const text = textInput.value.trim();
     if (!text || !tts) return;
@@ -156,14 +168,13 @@ btn.onclick = async () => {
         const audio = tts.generate({ 
             text: text, 
             sid: 0,
-            speed: 1.0 / parseFloat(document.getElementById('lengthScale').value)
+            speed: 1.0
         });
         
         const endTime = performance.now();
         const duration = ((endTime - startTime) / 1000).toFixed(2);
 
-        const sampleRate = audio.sampleRate;
-        const wavBlob = exportWav(audio.samples, sampleRate);
+        const wavBlob = exportWav(audio.samples, audio.sampleRate);
         const url = URL.createObjectURL(wavBlob);
         
         player.src = url;
@@ -188,6 +199,7 @@ btn.onclick = async () => {
     }
 };
 
+// ── Exportar WAV ───────────────────────────────────────────────────────────
 function exportWav(samples, sampleRate) {
     const buffer = new ArrayBuffer(44 + samples.length * 2);
     const view = new DataView(buffer);
@@ -214,6 +226,7 @@ function exportWav(samples, sampleRate) {
     return new Blob([buffer], { type: 'audio/wav' });
 }
 
+// ── Arranque ───────────────────────────────────────────────────────────────
 if (typeof Module !== 'undefined') {
     if (Module.calledRun) {
         initTTS();
