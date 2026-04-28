@@ -55,8 +55,47 @@ function setStatus(msg, cls) {
     statusMsg.textContent = msg;
 }
 
+// Helper para fetch con progreso
+async function fetchWithProgress(url, onProgress) {
+    const response = await fetch(url);
+
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    
+    const contentLength = response.headers.get('content-length');
+    if (!contentLength) {
+        // Si no hay content-length, caemos a fetch normal sin barra pero con el buffer
+        return await response.arrayBuffer();
+    }
+
+    const total = parseInt(contentLength, 10);
+    let loaded = 0;
+
+    const reader = response.body.getReader();
+    const chunks = [];
+    
+    while(true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.length;
+        if (onProgress) onProgress(Math.round((loaded / total) * 100));
+    }
+
+    const allChunks = new Uint8Array(loaded);
+    let position = 0;
+    for (const chunk of chunks) {
+        allChunks.set(chunk, position);
+        position += chunk.length;
+    }
+    return allChunks.buffer;
+}
+
 // ── Inicialización del Motor TTS ───────────────────────────────────────────
 async function initTTS() {
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const progressPercent = document.getElementById('progressPercent');
+    
     try {
         btn.disabled = true;
         btnText.textContent = "Preparando voz...";
@@ -68,38 +107,40 @@ async function initTTS() {
         let modelPath, tokensPath;
 
         if (selected.isInternal) {
-            // Preempaquetado en el WASM .data file — usar rutas tal como están
             modelPath = selected.model;
             tokensPath = selected.tokens;
+            progressContainer.style.display = 'none';
         } else {
-            // Cargar desde disco al VFS con nombre único por voz
             modelPath = '/model_' + voiceKey + '.onnx';
             tokensPath = '/tokens_' + voiceKey + '.txt';
 
             setStatus('Descargando modelo (' + selected.label + ')...', 'loading');
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressPercent.textContent = '0%';
 
-            const [modelResp, tokensResp] = await Promise.all([
-                fetch(selected.model),
-                fetch(selected.tokens)
-            ]);
+            // Descargar modelo con progreso
+            const modelBuffer = await fetchWithProgress(selected.model, (percent) => {
+                progressBar.style.width = percent + '%';
+                progressPercent.textContent = percent + '%';
+                statusMsg.textContent = `Descargando modelo: ${percent}%`;
+            });
 
-            if (!modelResp.ok) throw new Error(`No se pudo cargar el modelo: ${selected.model}`);
+            // Descargar tokens (suelen ser pequeños, no hace falta progreso complejo)
+            const tokensResp = await fetch(selected.tokens);
             if (!tokensResp.ok) throw new Error(`No se pudo cargar tokens: ${selected.tokens}`);
+            const tokensBuffer = await tokensResp.arrayBuffer();
 
-            // Cargar AMBOS como ArrayBuffer para preservar los bytes UTF-8 exactos
-            // (evita corrupción de caracteres IPA multi-byte al pasar por JS string)
-            const [modelBuffer, tokensBuffer] = await Promise.all([
-                modelResp.arrayBuffer(),
-                tokensResp.arrayBuffer()
-            ]);
+            progressContainer.style.display = 'none';
+            progressBar.style.width = '0%';
+            progressPercent.textContent = '0%';
 
-            // Escribir al VFS como Uint8Array (bytes exactos, sin re-codificar)
+            // Escribir al VFS
             try { Module.FS_unlink(modelPath); } catch(e) {}
             Module.FS_createDataFile("/", modelPath.substring(1), new Uint8Array(modelBuffer), true, true, true);
 
             try { Module.FS_unlink(tokensPath); } catch(e) {}
             Module.FS_createDataFile("/", tokensPath.substring(1), new Uint8Array(tokensBuffer), true, true, true);
-
         }
 
         setStatus('Configurando motor Sherpa-ONNX...', 'loading');
@@ -159,20 +200,43 @@ btn.onclick = async () => {
     btn.disabled = true;
     btnText.textContent = 'Sintetizando...';
     setStatus('Procesando audio...', 'loading');
+    
+    // Mostrar barra e iniciar cronómetro
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const progressPercent = document.getElementById('progressPercent');
+    const statusMsg = document.getElementById('statusMsg');
+    
+    progressContainer.style.display = 'block';
+    progressBar.style.width = '0%';
+    progressPercent.textContent = '0%';
+    progressBar.classList.add('pulse');
+    
+    const startTime = performance.now();
+    let timerInterval = setInterval(() => {
+        const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+        statusMsg.textContent = `Procesando audio... (${elapsed}s)`;
+        // Como no tenemos el progreso real de la función interna,
+        // mostramos el tiempo transcurrido en la barrita para que se mueva.
+        progressPercent.textContent = elapsed + 's';
+    }, 100);
 
-    await new Promise(r => setTimeout(r, 50));
+    // Pequeño respiro para que el navegador pinte el estado inicial
+    await new Promise(r => setTimeout(r, 100));
 
     try {
-        const startTime = performance.now();
-        
         const audio = tts.generate({ 
             text: text, 
             sid: 0,
             speed: 1.0
         });
         
+        clearInterval(timerInterval);
         const endTime = performance.now();
         const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+        progressBar.style.width = '100%';
+        progressPercent.textContent = '100%';
 
         const wavBlob = exportWav(audio.samples, audio.sampleRate);
         const url = URL.createObjectURL(wavBlob);
@@ -189,8 +253,16 @@ btn.onclick = async () => {
             a.click();
         };
 
+        setTimeout(() => {
+            progressBar.classList.remove('pulse');
+            progressContainer.style.display = 'none';
+        }, 500);
+
         setStatus(`Generado en ${duration}s ✓`, 'ready');
     } catch (e) {
+        clearInterval(timerInterval);
+        progressBar.classList.remove('pulse');
+        progressContainer.style.display = 'none';
         console.error(e);
         setStatus('Error en la síntesis', 'error');
     } finally {
@@ -198,6 +270,8 @@ btn.onclick = async () => {
         btnText.textContent = 'Sintetizar y Escuchar';
     }
 };
+
+
 
 // ── Exportar WAV ───────────────────────────────────────────────────────────
 function exportWav(samples, sampleRate) {

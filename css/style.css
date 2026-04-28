@@ -254,6 +254,48 @@ audio {
     display: none;
 }
 
+/* Progress Bar */
+.progress-container {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-left: 10px;
+}
+
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--primary);
+    box-shadow: 0 0 10px var(--primary-glow);
+    transition: width 0.1s ease;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 8px;
+}
+
+.progress-percent {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    white-space: nowrap;
+}
+
+.progress-bar.pulse {
+    width: 100% !important;
+    animation: progress-pulse 1.5s ease-in-out infinite;
+    transform-origin: left;
+}
+
+@keyframes progress-pulse {
+    0% { transform: scaleX(0); opacity: 0.5; }
+    50% { transform: scaleX(1); opacity: 1; }
+    100% { transform: scaleX(1); opacity: 0; }
+}
+
 /* Responsive */
 @media (max-width: 480px) {
     .controls-grid { grid-template-columns: 1fr; }
