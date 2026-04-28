@@ -8,8 +8,8 @@ const VOICES = {
         config: "./claude/es_MX-claude-high.onnx.json"
     },
     test_en: {
-        model: "en_US-libritts_r-medium.onnx",
-        tokens: "tokens.txt",
+        model: "./en_US-libritts_r-medium.onnx",
+        tokens: "./tokens.txt",
         isInternal: true
     }
 };
@@ -60,21 +60,23 @@ async function initTTS() {
             modelPath = selected.model;
             tokensPath = selected.tokens;
         } else {
+            modelPath = '/model_' + voiceKey + '.onnx';
+            tokensPath = '/tokens_' + voiceKey + '.txt';
+
             // 1. Cargar el modelo ONNX externo
             const modelResp = await fetch(selected.model);
             const modelBuffer = await modelResp.arrayBuffer();
             
-            // Limpiar archivos anteriores si existen para evitar errores
-            try { Module.FS_unlink('/model.onnx'); } catch(e) {}
-            Module.FS_createDataFile("/", "model.onnx", new Uint8Array(modelBuffer), true, true, true);
+            try { Module.FS_unlink(modelPath); } catch(e) {}
+            Module.FS_createDataFile("/", modelPath.substring(1), new Uint8Array(modelBuffer), true, true, true);
 
             // 2. Cargar el JSON de Piper y generar tokens.txt
             const configResp = await fetch(selected.config);
             const piperConfig = await configResp.json();
             const tokensText = generateTokensFromPiperJson(piperConfig);
             
-            try { Module.FS_unlink('/tokens.txt'); } catch(e) {}
-            Module.FS_createDataFile("/", "tokens.txt", tokensText, true, true, true);
+            try { Module.FS_unlink(tokensPath); } catch(e) {}
+            Module.FS_createDataFile("/", tokensPath.substring(1), tokensText, true, true, true);
         }
 
         setStatus('Configurando motor Sherpa-ONNX...', 'loading');
@@ -84,12 +86,12 @@ async function initTTS() {
                 offlineTtsVitsModelConfig: {
                     model: modelPath,
                     tokens: tokensPath,
-                    dataDir: '/espeak-ng-data', 
-                    noiseScale: parseFloat(document.getElementById('noiseScale').value),
+                    dataDir: './espeak-ng-data', 
+                    noiseScale: 0.667,
                     noiseScaleW: 0.8,
                     lengthScale: parseFloat(document.getElementById('lengthScale').value),
                 },
-                numThreads: navigator.hardwareConcurrency || 4,
+                numThreads: 1,
                 debug: 0,
                 provider: 'cpu',
             },
@@ -97,12 +99,20 @@ async function initTTS() {
             maxNumSentences: 1,
         };
 
+        console.log("Iniciando TTS con:", { modelPath, tokensPath, voiceKey });
+        
         if (tts) {
+            console.log("Reiniciando motor...");
             location.reload();
             return;
         }
 
-        tts = createOfflineTts(Module, config);
+        try {
+            tts = createOfflineTts(Module, config);
+        } catch (innerErr) {
+            console.error("Excepción interna en createOfflineTts:", innerErr);
+            throw innerErr;
+        }
 
         btn.disabled = false;
         btnText.textContent = 'Sintetizar y Escuchar';
