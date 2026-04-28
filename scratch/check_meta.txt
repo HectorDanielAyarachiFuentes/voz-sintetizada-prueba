@@ -1,5 +1,0 @@
-const checkMetadata = async () => {
-    // Note: We need a way to read ONNX metadata in JS without a full parser if possible,
-    // or we can just look at the strings in the binary if they are at the end.
-    // Better yet, let's use a Python script on the English model file if we have it on disk.
-};
