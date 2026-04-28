@@ -51,9 +51,10 @@
 
         <div class="field">
             <label>Voz</label>
-            <select id="voiceSelect">
-                <option value="daniela">🇦🇷 Daniela (Argentina)</option>
-                <option value="claude">🇲🇽 Claude (México)</option>
+            <select id="voiceSelect" class="voice-select">
+                <option value="daniela">Daniela (Argentina)</option>
+                <option value="claude">Claude (México)</option>
+                <option value="test_en">Voz de Prueba (Inglés)</option>
             </select>
         </div>
 
@@ -74,149 +75,178 @@
         <div id="statusBar" class="status-bar loading"><div class="dot"></div><span id="statusMsg">Inicializando motor...</span></div>
     </div>
 
-    <script src="piper_phonemize.js"></script>
-    <script src="ort.min.js"></script>
+    <!-- Motor Sherpa-ONNX (Versión Local) -->
+    <script src="./sherpa-onnx-wasm-main-tts.js"></script>
+    <script src="./sherpa-onnx-tts.js"></script>
     <script>
-        (async function() {
-            const VOICES = {
-                daniela: { model: './daniela/es_AR-daniela-high.onnx', lang: 'es-419', rate: 22050 },
-                claude: { model: './claude/es_MX-claude-high.onnx', lang: 'es-419', rate: 22050 }
-            };
-
-            const btn = document.getElementById('btnSpeak');
-            const btnDl = document.getElementById('btnDownload');
-            const player = document.getElementById('player');
-            const statusMsg = document.getElementById('statusMsg');
-            const statusBar = document.getElementById('statusBar');
-
-            let piperModule = null;
-            let piperOutput = "";
-            let piperInput = "";
-            let piperInputIdx = 0;
-            const sessions = {};
-
-            function setStatus(msg, cls) {
-                statusBar.className = 'status-bar ' + cls;
-                statusMsg.textContent = msg;
+        const VOICES = {
+            daniela: {
+                model: "./daniela/es_AR-daniela-high.onnx",
+                tokens: "./daniela/es_AR-daniela-high.onnx.json"
+            },
+            claude: {
+                model: "./claude/es_MX-claude-high.onnx",
+                tokens: "./claude/es_MX-claude-high.onnx.json"
+            },
+            test_en: {
+                model: "en_US-libritts_r-medium.onnx",
+                tokens: "tokens.txt",
+                isInternal: true
             }
+        };
 
-            // --- Inicialización de Piper ---
-            async function initPiper() {
-                return new Promise((resolve, reject) => {
-                    const modConfig = {
-                        locateFile: (n) => './' + n,
-                        print: (d) => { piperOutput += d + "\n"; },
-                        printErr: (d) => { console.warn("[Piper]", d); },
-                        stdin: () => {
-                            if (piperInputIdx < piperInput.length) return piperInput.charCodeAt(piperInputIdx++);
-                            return null;
-                        },
-                        onRuntimeInitialized: () => resolve()
-                    };
-                    createPiperPhonemize(modConfig).then(m => { piperModule = m; resolve(m); });
-                });
-            }
+        let tts = null;
 
-            async function getSession(key) {
-                if (sessions[key]) return sessions[key];
-                setStatus('Cargando modelo de voz (puede tardar)...', 'loading');
-                const sess = await ort.InferenceSession.create(VOICES[key].model, { executionProviders: ['wasm'] });
-                sessions[key] = sess;
-                return sess;
-            }
+        const btn = document.getElementById('btnSpeak');
+        const btnDl = document.getElementById('btnDownload');
+        const player = document.getElementById('player');
+        const statusMsg = document.getElementById('statusMsg');
+        const statusBar = document.getElementById('statusBar');
+        const voiceSelect = document.getElementById('voiceSelect');
+        const textInput = document.getElementById('textInput');
 
-            async function phonemize(text, lang) {
-                piperOutput = "";
-                piperInput = text + "\n";
-                piperInputIdx = 0;
-                
-                try {
-                    // Usamos una llamada controlada para evitar desbordamientos
-                    console.log("[Piper] Ejecutando callMain con:", ['-l', lang, '--espeak-data', '/espeak-ng-data', '--output_type', 'json', text]);
-                    piperModule.callMain(['-l', lang, '--espeak-data', '/espeak-ng-data', '--output_type', 'json', text]);
-                } catch(e) { console.error("Error en callMain", e); }
+        function setStatus(msg, cls) {
+            statusBar.className = 'status-bar ' + cls;
+            statusMsg.textContent = msg;
+        }
 
-                console.log("[Piper Result Raw]:", piperOutput);
-                const lines = piperOutput.split("\n");
-                for (const line of lines) {
-                    if (line.trim().startsWith('{')) {
-                        try {
-                            const p = JSON.parse(line);
-                            if (p.phoneme_ids) return p.phoneme_ids;
-                        } catch(e) {}
-                    }
-                }
-                throw new Error("No se pudo obtener la fonematización");
-            }
+        // Configurar el Módulo global antes de que se use
+        Module.onRuntimeInitialized = () => {
+            console.log("Motor WASM inicializado correctamente.");
+            initTTS();
+        };
 
-            function encodeWav(samples, sampleRate) {
-                const buffer = new ArrayBuffer(44 + samples.length * 2);
-                const view = new DataView(buffer);
-                const writeString = (off, s) => { for (let i=0; i<s.length; i++) view.setUint8(off+i, s.charCodeAt(i)); };
-                
-                writeString(0, 'RIFF'); view.setUint32(4, 36 + samples.length * 2, true);
-                writeString(8, 'WAVE'); writeString(12, 'fmt '); view.setUint32(16, 16, true);
-                view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-                view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
-                view.setUint16(32, 2, true); view.setUint16(34, 16, true);
-                writeString(36, 'data'); view.setUint32(40, samples.length * 2, true);
-
-                for (let i = 0, offset = 44; i < samples.length; i++, offset += 2) {
-                    let s = Math.max(-1, Math.min(1, samples[i]));
-                    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-                }
-                return buffer;
-            }
-
-            // --- Lógica Principal ---
-            btn.onclick = async () => {
-                const text = document.getElementById('textInput').value.trim();
-                if (!text) return;
-                const voiceKey = document.getElementById('voiceSelect').value;
-                const nS = parseFloat(document.getElementById('noiseScale').value);
-                const lS = parseFloat(document.getElementById('lengthScale').value);
-
-                btn.disabled = true;
-                setStatus('Procesando...', 'loading');
-
-                try {
-                    const phonemes = await phonemize(text, VOICES[voiceKey].lang);
-                    const session = await getSession(voiceKey);
-                    
-                    const feeds = {
-                        input: new ort.Tensor('int64', BigInt64Array.from(phonemes.map(BigInt)), [1, phonemes.length]),
-                        input_lengths: new ort.Tensor('int64', BigInt64Array.from([BigInt(phonemes.length)]), [1]),
-                        scales: new ort.Tensor('float32', Float32Array.from([nS, lS, 0.8]), [3]),
-                        sid: new ort.Tensor('int64', BigInt64Array.from([0n]), [1])
-                    };
-
-                    const result = await session.run(feeds);
-                    const audioData = result.output ? result.output.data : result[Object.keys(result)[0]].data;
-                    const wav = encodeWav(audioData, VOICES[voiceKey].rate);
-                    
-                    const url = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
-                    player.src = url;
-                    player.style.display = 'block';
-                    player.play();
-                    
-                    btnDl.style.display = 'block';
-                    btnDl.onclick = () => { const a = document.createElement('a'); a.href = url; a.download = 'audio.wav'; a.click(); };
-                    setStatus('✓ Audio generado', 'ready');
-                } catch(e) {
-                    setStatus('Error: ' + e.message, 'error');
-                    console.error(e);
-                } finally { btn.disabled = false; }
-            };
-
-            // Iniciar
+        async function initTTS() {
             try {
-                window.ort.env.wasm.wasmPaths = './';
-                await initPiper();
-                setStatus('Motor listo ✓', 'ready');
+                btn.disabled = true;
+                setStatus('Preparando archivos de voz...', 'loading');
+
+                const voiceKey = voiceSelect.value;
+                const selected = VOICES[voiceKey];
+                let modelName = selected.model;
+                let tokensName = selected.tokens;
+
+                if (!selected.isInternal) {
+                    // Función para montar archivos en el sistema de archivos virtual de WASM
+                    async function mountFile(path, name) {
+                        const response = await fetch(path);
+                        const buffer = await response.arrayBuffer();
+                        const data = new Uint8Array(buffer);
+                        Module.FS_createDataFile("/", name, data, true, true, true);
+                        return name;
+                    }
+
+                    // Montamos los archivos locales en la raíz del motor
+                    modelName = await mountFile(selected.model, 'model.onnx');
+                    tokensName = await mountFile(selected.tokens, 'tokens.txt');
+                }
+
+                setStatus('Configurando motor...', 'loading');
+                
+                const config = {
+                    offlineTtsModelConfig: {
+                        offlineTtsVitsModelConfig: {
+                            model: modelName,
+                            tokens: tokensName,
+                            noiseScale: 0.667,
+                            noiseScaleW: 0.8,
+                            lengthScale: 1.0,
+                        },
+                        numThreads: 1,
+                        debug: 1,
+                        provider: 'cpu',
+                    },
+                    ruleFsts: '',
+                    maxNumSentences: 1,
+                };
+
+                // ¡ORDE CORRECTO! (Module, config)
+                tts = createOfflineTts(Module, config);
+
                 btn.disabled = false;
                 btn.textContent = '🎙 Sintetizar y Escuchar';
-            } catch(e) { setStatus('Error de carga', 'error'); console.error(e); }
-        })();
+                setStatus('Motor listo ✓', 'ready');
+            } catch (err) {
+                setStatus('Error de motor', 'error');
+                console.error("Fallo crítico en Sherpa-ONNX:", err);
+            }
+        }
+
+        voiceSelect.onchange = () => {
+            // Recargar para limpiar el FS virtual y evitar conflictos
+            location.reload();
+        };
+
+        btn.onclick = async () => {
+            const text = textInput.value.trim();
+            if (!text || !tts) return;
+
+            btn.disabled = true;
+            setStatus('Sintetizando...', 'loading');
+
+            try {
+                const audio = tts.generate({ text: text, sid: 0 });
+                
+                const sampleRate = audio.sampleRate;
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
+                const buffer = audioContext.createBuffer(1, audio.samples.length, sampleRate);
+                buffer.getChannelData(0).set(audio.samples);
+
+                const source = audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioContext.destination);
+                source.start();
+                
+                const wavBlob = exportWav(audio.samples, sampleRate);
+                const url = URL.createObjectURL(wavBlob);
+                player.src = url;
+                player.style.display = 'block';
+                player.play();
+
+                btnDl.style.display = 'block';
+                btnDl.onclick = () => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'voz_generada.wav';
+                    a.click();
+                };
+
+                setStatus('✓ Audio generado', 'ready');
+            } catch (e) {
+                console.error(e);
+                setStatus('Error en síntesis', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        };
+
+        function exportWav(samples, sampleRate) {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+            const writeString = (off, s) => { for (let i=0; i<s.length; i++) view.setUint8(off+i, s.charCodeAt(i)); };
+            
+            writeString(0, 'RIFF'); view.setUint32(4, 36 + samples.length * 2, true);
+            writeString(8, 'WAVE'); writeString(12, 'fmt '); view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+            writeString(36, 'data'); view.setUint32(40, samples.length * 2, true);
+
+            for (let i = 0, offset = 44; i < samples.length; i++, offset += 2) {
+                let s = Math.max(-1, Math.min(1, samples[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        // Manejo robusto de la inicialización
+        if (Module.calledRun) {
+            initTTS();
+        } else {
+            Module.onRuntimeInitialized = () => {
+                initTTS();
+            };
+        }
     </script>
 </body>
 </html>
