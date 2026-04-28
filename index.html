@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voz Mejorada Sintetizada - Offline TTS</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        :root {
+            --primary: #6366f1;
+            --bg: #0a0a14;
+            --surface: #12121f;
+            --surface2: #1a1a2e;
+            --border: #2a2a4a;
+            --text: #e2e8f0;
+            --muted: #64748b;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background-image:
+                radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 560px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #818cf8, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.4rem;
+        }
+
+        .header p {
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #818cf8;
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 999px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 0.8rem;
+        }
+
+        .field {
+            margin-bottom: 1rem;
+        }
+
+        .field label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.4rem;
+        }
+
+        select,
+        textarea {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.9rem;
+            padding: 0.65rem 0.85rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        select:focus,
+        textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 90px;
+        }
+
+        .sliders {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .slider-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.35rem;
+        }
+
+        .slider-group label span {
+            color: #818cf8;
+            font-weight: 700;
+        }
+
+        input[type=range] {
+            width: 100%;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.85rem 1.5rem;
+            border: none;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #btnSpeak {
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            color: white;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            margin-bottom: 0.6rem;
+        }
+
+        #btnSpeak:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        }
+
+        #btnSpeak:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #btnDownload {
+            background: var(--surface2);
+            color: var(--muted);
+            border: 1px solid var(--border);
+            font-size: 0.85rem;
+            padding: 0.6rem;
+            display: none;
+            margin-bottom: 0.6rem;
+        }
+
+        #btnDownload:hover {
+            color: var(--text);
+            border-color: var(--primary);
+        }
+
+        .status-bar {
+            margin-top: 0.75rem;
+            padding: 0.7rem 1rem;
+            border-radius: 10px;
+            font-size: 0.83rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+        }
+
+        .status-bar.loading {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: var(--warning);
+        }
+
+        .status-bar.ready {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: var(--success);
+        }
+
+        .status-bar.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: var(--error);
+        }
+
+        .status-bar.working {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #818cf8;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .loading .dot {
+            background: var(--warning);
+            animation: pulse 1s infinite;
+        }
+
+        .ready .dot {
+            background: var(--success);
+        }
+
+        .error .dot {
+            background: var(--error);
+        }
+
+        .working .dot {
+            background: #818cf8;
+            animation: pulse 0.6s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.3
+            }
+        }
+
+        .prog-wrap {
+            background: var(--surface2);
+            border-radius: 999px;
+            height: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .prog-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), #8b5cf6);
+            border-radius: 999px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 0.6rem;
+            border-radius: 8px;
+            display: none;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 0.72rem;
+            color: var(--muted);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <div class="header">
+            <div class="badge">🔒 100% Offline</div>
+            <h1>Voz Mejorada Sintetizada</h1>
+            <p>Motor Piper TTS · WebAssembly · Sin internet</p>
+        </div>
+
+        <div class="field">
+            <label>Seleccionar Voz</label>
+            <select id="voiceSelect">
+                <option value="daniela">🇦🇷 Daniela — Español Argentina</option>
+                <option value="claude">🇲🇽 Claude — Español México</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Texto a sintetizar</label>
+            <textarea
+                id="textInput">Hola Héctor, ¿cómo estás? Esta es una prueba de voz profesional funcionando totalmente fuera de línea.</textarea>
+        </div>
+
+        <div class="sliders">
+            <div class="slider-group">
+                <label>Velocidad <span id="speedVal">1.00</span></label>
+                <input type="range" id="lengthScale" min="0.5" max="2.0" step="0.05" value="1.0">
+            </div>
+            <div class="slider-group">
+                <label>Variación <span id="noiseVal">0.67</span></label>
+                <input type="range" id="noiseScale" min="0.1" max="1.5" step="0.01" value="0.667">
+            </div>
+        </div>
+
+        <button id="btnSpeak" disabled>⏳ Cargando motor...</button>
+        <button id="btnDownload">⬇ Descargar WAV</button>
+        <audio id="audioPlayer" controls></audio>
+
+        <div id="statusBar" class="status-bar loading">
+            <div class="dot"></div>
+            <span id="statusMsg">Inicializando WebAssembly...</span>
+        </div>
+        <div class="prog-wrap" id="progWrap">
+            <div class="prog-bar" id="progBar"></div>
+        </div>
+
+        <footer>By Hector Daniel · Piper TTS + ONNX Runtime Web</footer>
+    </div>
+
+    <script src="piper_phonemize.js"></script>
+    <script src="ort.min.js"></script>
+    <script>
+        (async function () {
+            const VOICES = {
+                daniela: { model: './daniela/es_AR-daniela-high.onnx', config: './daniela/es_AR-daniela-high.onnx.json', lang: 'es', rate: 22050 },
+                claude: { model: './claude/es_MX-claude-high.onnx', config: './claude/es_MX-claude-high.onnx.json', lang: 'es', rate: 22050 }
+            };
+
+            const ort = window.ort;
+            ort.env.wasm.wasmPaths = './';
+            ort.env.wasm.numThreads = 1;
+
+            const btn = document.getElementById('btnSpeak');
+            const btnDl = document.getElementById('btnDownload');
+            const statusBar = document.getElementById('statusBar');
+            const statusMsg = document.getElementById('statusMsg');
+            const progBar = document.getElementById('progBar');
+            const progWrap = document.getElementById('progWrap');
+            const player = document.getElementById('audioPlayer');
+
+            let piperModule = null;
+            let piperOutput = "";
+
+            function setStatus(msg, cls) {
+                statusBar.className = 'status-bar ' + cls;
+                statusMsg.textContent = msg;
+            }
+            function setProgress(pct) {
+                progWrap.style.display = (pct > 0 && pct < 100) ? 'block' : 'none';
+                progBar.style.width = pct + '%';
+            }
+
+            async function initPiper() {
+                return new Promise((resolve, reject) => {
+                    const modConfig = {
+                        locateFile: (name) => './' + name,
+                        print: (data) => { piperOutput += data + "\n"; },
+                        printErr: (data) => { console.warn("[Piper]", data); },
+                        onRuntimeInitialized: () => {
+                            console.log("[Piper] Runtime inicializado correctamente.");
+                        },
+                        setStatus: (msg) => {
+                            if (!msg) return;
+                            console.log("[Piper Status]", msg);
+                            const m = msg.match(/\((\d+)\/(\d+)\)/);
+                            if (m) {
+                                const pct = Math.round(parseInt(m[1]) / parseInt(m[2]) * 100);
+                                setProgress(pct);
+                                setStatus('Descargando datos... ' + pct + '%', 'loading');
+                            }
+                        }
+                    };
+                    createPiperPhonemize(modConfig).then(m => {
+                        piperModule = m;
+                        console.log("[Piper] Módulo cargado. FS:", m.FS.readdir('/'));
+                        setProgress(0);
+                        resolve(m);
+                    }).catch(err => {
+                        console.error("[Piper] Error al crear el módulo:", err);
+                        reject(err);
+                    });
+                });
+            }
+
+            const sessions = {};
+            async function getSession(key) {
+                if (sessions[key]) return sessions[key];
+                setStatus('Iniciando motor de voz...', 'loading');
+                const sess = await ort.InferenceSession.create(VOICES[key].model, {
+                    executionProviders: ['wasm'],
+                    graphOptimizationLevel: 'all'
+                });
+                sessions[key] = sess;
+                return sess;
+            }
+
+            // ────────────────────────────────────────────────
+            // Fonematización mejorada con Debug
+            // ────────────────────────────────────────────────
+            function phonemize(text, lang) {
+                return new Promise((resolve, reject) => {
+                    piperOutput = "";
+                    let piperErrors = "";
+
+                    const origPrint = piperModule.print;
+                    const origErr = piperModule.printErr;
+                    piperModule.print = (s) => { piperOutput += s + "\n"; };
+                    piperModule.printErr = (s) => { piperErrors += s + "\n"; };
+
+                    // Diagnóstico: Ver qué hay dentro de los datos de espeak
+                    try {
+                        console.log("[Piper FS] Contenido de /espeak-ng-data:", piperModule.FS.readdir('/espeak-ng-data'));
+                    } catch (e) {
+                        console.warn("[Piper FS] No se pudo leer /espeak-ng-data, probando /");
+                    }
+
+                    const tempFile = "/input.txt";
+                    piperModule.FS.writeFile(tempFile, text);
+
+                    try {
+                        // Intentamos con la ruta de datos forzada al máximo
+                        piperModule.callMain([
+                            '--language', lang,
+                            '--output_type', 'json',
+                            '--espeak-data', '/espeak-ng-data',
+                            '--input', tempFile
+                        ]);
+                    } catch (e) { }
+
+                    piperModule.print = origPrint;
+                    piperModule.printErr = origErr;
+
+                    console.log("[Piper Result]:", piperOutput);
+
+                    if (!piperOutput.trim()) {
+                        // Intento de respaldo: sin flags de input si el anterior falló
+                        try {
+                            piperModule.callMain(['-l', lang, '--output_type', 'json']);
+                        } catch (e) { }
+                    }
+
+                    const lines = piperOutput.split("\n");
+                    for (const line of lines) {
+                        if (line.trim().startsWith('{')) {
+                            try {
+                                const p = JSON.parse(line);
+                                if (p.phoneme_ids) { resolve(p.phoneme_ids); return; }
+                            } catch (e) { }
+                        }
+                    }
+
+                    // Si falló y el idioma era 'es', reintentar con 'es-419'
+                    if (lang === 'es') {
+                        console.log("[Piper] Reintentando con es-419...");
+                        phonemize(text, 'es-419').then(resolve).catch(reject);
+                        return;
+                    }
+
+                    if (piperErrors) console.error("Piper Error:", piperErrors);
+                    reject(new Error("No se pudo obtener la fonematización."));
+                });
+            }
+
+            async function synthesize(session, phonemeIds, noiseScale, noiseW, lengthScale) {
+                const len = phonemeIds.length;
+                const feeds = {
+                    input: new ort.Tensor('int64', BigInt64Array.from(phonemeIds.map(BigInt)), [1, len]),
+                    input_lengths: new ort.Tensor('int64', BigInt64Array.from([BigInt(len)]), [1]),
+                    scales: new ort.Tensor('float32', Float32Array.from([noiseScale, lengthScale, noiseW]), [3]),
+                    sid: new ort.Tensor('int64', BigInt64Array.from([0n]), [1])
+                };
+                const result = await session.run(feeds);
+                const key = result.output ? 'output' : Object.keys(result)[0];
+                return result[key].data;
+            }
+
+            function encodeWav(samples, sampleRate) {
+                const n = samples.length;
+                const buf = new ArrayBuffer(44 + n * 2);
+                const v = new DataView(buf);
+                const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+                str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true);
+                str(8, 'WAVE'); str(12, 'fmt '); v.setUint32(16, 16, true);
+                v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+                v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true);
+                v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+                str(36, 'data'); v.setUint32(40, n * 2, true);
+                for (let i = 0, o = 44; i < n; i++, o += 2) {
+                    let s = Math.max(-1, Math.min(1, samples[i]));
+                    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                }
+                return buf;
+            }
+
+            let lastUrl = null;
+            btn.onclick = async () => {
+                const text = document.getElementById('textInput').value.trim();
+                if (!text) return;
+                const voiceKey = document.getElementById('voiceSelect').value;
+                const nS = parseFloat(document.getElementById('noiseScale').value);
+                const lS = parseFloat(document.getElementById('lengthScale').value);
+
+                btn.disabled = true;
+                btnDl.style.display = 'none';
+                player.style.display = 'none';
+                setStatus('Procesando...', 'working');
+
+                try {
+                    const ids = await phonemize(text, VOICES[voiceKey].lang);
+                    const session = await getSession(voiceKey);
+                    const samples = await synthesize(session, ids, nS, 0.8, lS);
+                    const wav = encodeWav(samples, VOICES[voiceKey].rate);
+
+                    if (lastUrl) URL.revokeObjectURL(lastUrl);
+                    lastUrl = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
+                    player.src = lastUrl;
+                    player.style.display = 'block';
+                    player.play();
+
+                    btnDl.style.display = 'block';
+                    btnDl.onclick = () => {
+                        const a = document.createElement('a');
+                        a.href = lastUrl; a.download = 'audio.wav'; a.click();
+                    };
+                    setStatus('✓ Audio generado', 'ready');
+                } catch (e) {
+                    setStatus('Error: ' + e.message, 'error');
+                    console.error(e);
+                } finally {
+                    btn.disabled = false;
+                }
+            };
+
+            initPiper().then(() => {
+                setStatus('Motor listo ✓', 'ready');
+                btn.disabled = false;
+                btn.textContent = '🎙 Sintetizar y Escuchar';
+            }).catch(e => setStatus('Error de carga', 'error'));
+
+        })();
+    </script>
+</body>
+
+</html>
