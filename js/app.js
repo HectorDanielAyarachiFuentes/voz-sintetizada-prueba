@@ -127,12 +127,12 @@ async function initTTS() {
             maxNumSentences: 1,
         };
 
-        console.log("Iniciando TTS con:", { modelPath, tokensPath, voiceKey, dataDir, isPiper: selected.isPiper });
+        console.log("Iniciando TTS con:", { modelPath, tokensPath, voiceKey, dataDir: selected.dataDir, isPiper: selected.isPiper });
 
+        // Si ya hay un motor activo, liberarlo antes de crear uno nuevo
         if (tts) {
-            // Si ya hay un motor cargado, recargar la página para limpiarlo
-            location.reload();
-            return;
+            tts.free();
+            tts = null;
         }
 
         tts = createOfflineTts(Module, config);
