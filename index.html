@@ -357,8 +357,8 @@
     <script>
         (async function () {
             const VOICES = {
-                daniela: { model: './daniela/es_AR-daniela-high.onnx', config: './daniela/es_AR-daniela-high.onnx.json', lang: 'es', rate: 22050 },
-                claude: { model: './claude/es_MX-claude-high.onnx', config: './claude/es_MX-claude-high.onnx.json', lang: 'es', rate: 22050 }
+                daniela: { model: './daniela/es_AR-daniela-high.onnx', config: './daniela/es_AR-daniela-high.onnx.json', lang: 'es-419', rate: 22050 },
+                claude: { model: './claude/es_MX-claude-high.onnx', config: './claude/es_MX-claude-high.onnx.json', lang: 'es-419', rate: 22050 }
             };
 
             const ort = window.ort;
@@ -374,6 +374,8 @@
             const player = document.getElementById('audioPlayer');
 
             let piperModule = null;
+            let piperInput = "";
+            let piperInputIdx = 0;
             let piperOutput = "";
 
             function setStatus(msg, cls) {
@@ -389,8 +391,19 @@
                 return new Promise((resolve, reject) => {
                     const modConfig = {
                         locateFile: (name) => './' + name,
-                        print: (data) => { piperOutput += data + "\n"; },
-                        printErr: (data) => { console.warn("[Piper]", data); },
+                        print: (data) => { 
+                            piperOutput += data + "\n"; 
+                            console.log("[Piper stdout]", data); 
+                        },
+                        printErr: (data) => { 
+                            console.warn("[Piper stderr]", data); 
+                        },
+                        stdin: () => {
+                            if (piperInputIdx < piperInput.length) {
+                                return piperInput.charCodeAt(piperInputIdx++);
+                            }
+                            return null;
+                        },
                         onRuntimeInitialized: () => {
                             console.log("[Piper] Runtime inicializado correctamente.");
                         },
@@ -430,69 +443,69 @@
             }
 
             // ────────────────────────────────────────────────
-            // Fonematización mejorada con Debug
+            // Fonematización - usando STDIN injection
             // ────────────────────────────────────────────────
-            function phonemize(text, lang) {
+            function phonemize(text, lang, isRetry = false) {
                 return new Promise((resolve, reject) => {
+                    console.log("[Piper] Iniciando fonematización para:", text, "idioma:", lang);
                     piperOutput = "";
                     let piperErrors = "";
 
-                    const origPrint = piperModule.print;
-                    const origErr = piperModule.printErr;
-                    piperModule.print = (s) => { piperOutput += s + "\n"; };
-                    piperModule.printErr = (s) => { piperErrors += s + "\n"; };
+                    // Set up STDIN feeder
+                    piperInput = text + "\n";
+                    piperInputIdx = 0;
 
-                    // Diagnóstico: Ver qué hay dentro de los datos de espeak
+                    let exitCode = 0;
                     try {
-                        console.log("[Piper FS] Contenido de /espeak-ng-data:", piperModule.FS.readdir('/espeak-ng-data'));
-                    } catch (e) {
-                        console.warn("[Piper FS] No se pudo leer /espeak-ng-data, probando /");
-                    }
+                        // Diagnostic: See what functions are available
+                        console.log("[Piper] Funciones en el módulo:", Object.keys(piperModule).filter(k => k.startsWith('_') || k.includes('main')));
 
-                    const tempFile = "/input.txt";
-                    piperModule.FS.writeFile(tempFile, text);
-
-                    try {
-                        // Intentamos con la ruta de datos forzada al máximo
-                        piperModule.callMain([
-                            '--language', lang,
-                            '--output_type', 'json',
+                        // Try passing text as the last argument
+                        exitCode = piperModule.callMain([
+                            '-l', lang,
                             '--espeak-data', '/espeak-ng-data',
-                            '--input', tempFile
+                            '--output_type', 'json',
+                            text
                         ]);
-                    } catch (e) { }
-
-                    piperModule.print = origPrint;
-                    piperModule.printErr = origErr;
-
-                    console.log("[Piper Result]:", piperOutput);
-
-                    if (!piperOutput.trim()) {
-                        // Intento de respaldo: sin flags de input si el anterior falló
-                        try {
-                            piperModule.callMain(['-l', lang, '--output_type', 'json']);
-                        } catch (e) { }
+                        console.log("[Piper] callMain exit code:", exitCode);
+                    } catch (e) {
+                        console.error("[Piper] callMain exception:", e);
+                        exitCode = -1;
                     }
 
+                    console.log("[Piper Result stdout]:", piperOutput);
+
+                    // Parse output for phoneme_ids
                     const lines = piperOutput.split("\n");
                     for (const line of lines) {
                         if (line.trim().startsWith('{')) {
                             try {
                                 const p = JSON.parse(line);
-                                if (p.phoneme_ids) { resolve(p.phoneme_ids); return; }
-                            } catch (e) { }
+                                if (p.phoneme_ids) { 
+                                    console.log("[Piper] Fonemas obtenidos:", p.phoneme_ids);
+                                    resolve(p.phoneme_ids); 
+                                    return; 
+                                }
+                            } catch (e) {
+                                console.warn("[Piper] Error al parsear línea JSON:", e, line);
+                            }
                         }
                     }
 
-                    // Si falló y el idioma era 'es', reintentar con 'es-419'
-                    if (lang === 'es') {
-                        console.log("[Piper] Reintentando con es-419...");
-                        phonemize(text, 'es-419').then(resolve).catch(reject);
-                        return;
+                    // Retry logic (only once)
+                    if (!isRetry) {
+                        if (lang === 'es-419') {
+                            console.log("[Piper] Reintentando con 'es'...");
+                            phonemize(text, 'es', true).then(resolve).catch(reject);
+                            return;
+                        } else if (lang === 'es') {
+                            console.log("[Piper] Reintentando con 'es-419'...");
+                            phonemize(text, 'es-419', true).then(resolve).catch(reject);
+                            return;
+                        }
                     }
 
-                    if (piperErrors) console.error("Piper Error:", piperErrors);
-                    reject(new Error("No se pudo obtener la fonematización."));
+                    reject(new Error("No se pudo obtener la fonematización. " + (piperOutput ? "Salida: " + piperOutput : "La salida fue vacía.")));
                 });
             }
 
