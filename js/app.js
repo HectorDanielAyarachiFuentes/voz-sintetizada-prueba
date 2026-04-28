@@ -4,8 +4,14 @@ const VOICES = {
         config: "./daniela/es_AR-daniela-high.onnx.json"
     },
     claude: {
-        model: "./claude/es_MX-claude-high.onnx",
-        config: "./claude/es_MX-claude-high.onnx.json"
+        model: "./claude/es_AR-daniela-high.onnx",
+        tokens: "./claude/tokens.txt"
+    },
+    mms_spa: {
+        model: "./vits-mms-spa/model.onnx",
+        tokens: "./vits-mms-spa/tokens.txt",
+        dataDir: "",
+        isInternal: false
     },
     test_en: {
         model: "./en_US-libritts_r-medium.onnx",
@@ -70,10 +76,16 @@ async function initTTS() {
             try { Module.FS_unlink(modelPath); } catch(e) {}
             Module.FS_createDataFile("/", modelPath.substring(1), new Uint8Array(modelBuffer), true, true, true);
 
-            // 2. Cargar el JSON de Piper y generar tokens.txt
-            const configResp = await fetch(selected.config);
-            const piperConfig = await configResp.json();
-            const tokensText = generateTokensFromPiperJson(piperConfig);
+            // 2. Cargar Tokens (ya sea desde un .txt directo o generando desde un .json)
+            let tokensText = "";
+            if (selected.tokens) {
+                const tokensResp = await fetch(selected.tokens);
+                tokensText = await tokensResp.text();
+            } else if (selected.config) {
+                const configResp = await fetch(selected.config);
+                const piperConfig = await configResp.json();
+                tokensText = generateTokensFromPiperJson(piperConfig);
+            }
             
             try { Module.FS_unlink(tokensPath); } catch(e) {}
             Module.FS_createDataFile("/", tokensPath.substring(1), tokensText, true, true, true);
