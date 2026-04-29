@@ -4,33 +4,33 @@ const VOICES = {
     // Usan la API de Piper con espeak integrado
     claude: {
         label: 'Claude (México - Alta Calidad)',
-        model: "./claude/es_MX-claude-high.onnx",
-        tokens: "./claude/tokens.txt",
+        model: "claude/es_MX-claude-high.onnx",
+        tokens: "claude/tokens.txt",
         isPiper: true,
-        dataDir: './espeak-ng-data',
+        dataDir: 'espeak-ng-data',
     },
     daniela: {
         label: 'Daniela (Argentina - Alta Calidad)',
-        model: "./daniela/es_AR-daniela-high.onnx",
-        tokens: "./daniela/tokens.txt",
+        model: "daniela/es_AR-daniela-high.onnx",
+        tokens: "daniela/tokens.txt",
         isPiper: true,
-        dataDir: './espeak-ng-data',
+        dataDir: 'espeak-ng-data',
     },
     // Modelo Meta MMS (comment: "mms", frontend: "characters")
     mms_spa: {
         label: 'Español (Meta MMS)',
-        model: "./vits-mms-spa/model.onnx",
-        tokens: "./vits-mms-spa/tokens.txt",
+        model: "vits-mms-spa/model.onnx",
+        tokens: "vits-mms-spa/tokens.txt",
         isPiper: false,
         dataDir: '',
     },
     // Modelo en inglés (preempaquetado en el WASM .data)
     test_en: {
         label: 'Voz de Prueba (Inglés - Libritts)',
-        model: "./en_US-libritts_r-medium.onnx",
-        tokens: "./tokens.txt",
+        model: "en_US-libritts_r-medium.onnx",
+        tokens: "tokens.txt",
         isPiper: false,
-        dataDir: './espeak-ng-data',
+        dataDir: 'espeak-ng-data',
         isInternal: true,
     }
 };
@@ -109,6 +109,8 @@ async function initTTS() {
         if (selected.isInternal) {
             modelPath = selected.model;
             tokensPath = selected.tokens;
+            if (!modelPath.startsWith('/')) modelPath = '/' + modelPath;
+            if (!tokensPath.startsWith('/')) tokensPath = '/' + tokensPath;
             progressContainer.style.display = 'none';
         } else {
             modelPath = '/model_' + voiceKey + '.onnx';
@@ -168,12 +170,15 @@ async function initTTS() {
             maxNumSentences: 1,
         };
 
-        console.log("Iniciando TTS con:", { modelPath, tokensPath, voiceKey, dataDir: selected.dataDir, isPiper: selected.isPiper });
+        console.log("Iniciando TTS con configuracion:", JSON.stringify(config, null, 2));
 
         // Si ya hay un motor activo, liberarlo antes de crear uno nuevo
         if (tts) {
-            tts.free();
-            tts = null;
+            try {
+                tts.free();
+            } catch (e) {
+                console.warn("Error al liberar motor anterior:", e);
+            }
         }
 
         tts = createOfflineTts(Module, config);
