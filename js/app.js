@@ -24,14 +24,14 @@ const VOICES = {
         isPiper: false,
         dataDir: '',
     },
-    // Modelo en inglés (preempaquetado en el WASM .data)
+    // Modelo en inglés (espeak-ng-data y tokens.txt vienen en el .data)
     test_en: {
         label: 'Voz de Prueba (Inglés - Libritts)',
         model: "en_US-libritts_r-medium.onnx",
         tokens: "tokens.txt",
         isPiper: false,
         dataDir: 'espeak-ng-data',
-        isInternal: true,
+        internalTokens: true,  // tokens.txt ya está en el VFS via .data
     }
 };
 
@@ -114,13 +114,29 @@ async function initTTS() {
 
         let modelPath, tokensPath;
 
-        if (selected.isInternal) {
-            modelPath = selected.model;
-            tokensPath = selected.tokens;
-            if (!modelPath.startsWith('/')) modelPath = '/' + modelPath;
-            if (!tokensPath.startsWith('/')) tokensPath = '/' + tokensPath;
+        // Determinar rutas según tipo de modelo
+        if (selected.internalTokens) {
+            // Tokens ya están en el VFS (via .data), solo descargar el .onnx
+            tokensPath = '/' + selected.tokens;
+            modelPath = '/model_' + voiceKey + '.onnx';
+
+            setStatus('Descargando modelo (' + selected.label + ')...', 'loading');
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressPercent.textContent = '0%';
+
+            const modelBuffer = await fetchWithProgress(selected.model, (percent) => {
+                progressBar.style.width = percent + '%';
+                progressPercent.textContent = percent + '%';
+                statusMsg.textContent = `Descargando modelo: ${percent}%`;
+            });
+
             progressContainer.style.display = 'none';
+
+            try { Module.FS_unlink(modelPath); } catch(e) {}
+            Module.FS_createDataFile("/", modelPath.substring(1), new Uint8Array(modelBuffer), true, true, true);
         } else {
+            // Descargar tanto modelo como tokens
             modelPath = '/model_' + voiceKey + '.onnx';
             tokensPath = '/tokens_' + voiceKey + '.txt';
 
@@ -136,7 +152,7 @@ async function initTTS() {
                 statusMsg.textContent = `Descargando modelo: ${percent}%`;
             });
 
-            // Descargar tokens (suelen ser pequeños, no hace falta progreso complejo)
+            // Descargar tokens
             const tokensResp = await fetch(selected.tokens);
             if (!tokensResp.ok) throw new Error(`No se pudo cargar tokens: ${selected.tokens}`);
             const tokensBuffer = await tokensResp.arrayBuffer();
