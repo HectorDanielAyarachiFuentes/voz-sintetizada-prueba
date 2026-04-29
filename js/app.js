@@ -36,6 +36,7 @@ const VOICES = {
 };
 
 let tts = null;
+let wasmReady = false;
 const btn = document.getElementById('btnSpeak');
 const btnText = document.getElementById('btnText');
 const btnIcon = document.getElementById('btnIcon');
@@ -96,6 +97,13 @@ async function initTTS() {
     const progressBar = document.getElementById('progressBar');
     const progressPercent = document.getElementById('progressPercent');
     
+    // Guardia: no ejecutar si el runtime WASM no está listo
+    if (!wasmReady) {
+        console.warn('WASM aún no está listo. Esperando...');
+        setStatus('Esperando al motor WASM...', 'loading');
+        return;
+    }
+
     try {
         btn.disabled = true;
         btnText.textContent = "Preparando voz...";
@@ -307,9 +315,15 @@ function exportWav(samples, sampleRate) {
 
 // ── Arranque ───────────────────────────────────────────────────────────────
 if (typeof Module !== 'undefined') {
-    if (Module.calledRun) {
+    const onReady = () => {
+        wasmReady = true;
+        console.log('WASM runtime inicializado correctamente.');
         initTTS();
+    };
+
+    if (Module.calledRun) {
+        onReady();
     } else {
-        Module.onRuntimeInitialized = () => initTTS();
+        Module.onRuntimeInitialized = onReady;
     }
 }
