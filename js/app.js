@@ -1,17 +1,25 @@
 // ── Configuración de Voces ─────────────────────────────────────────────────
 const VOICES = {
-    // Modelos Piper oficiales de sherpa-onnx (comment: "piper", has_espeak: 1)
     // Usan la API de Piper con espeak integrado
     claude: {
         label: 'Claude (México - Alta Calidad)',
-        model: "https://github.com/HectorDanielAyarachiFuentes/voz-sintetizada-prueba/releases/download/v1.0-models/es_MX-claude-high.onnx",
+        modelChunks: [
+            "claude/es_MX-claude-high.onnx.part1",
+            "claude/es_MX-claude-high.onnx.part2",
+            "claude/es_MX-claude-high.onnx.part3"
+        ],
         tokens: "claude/tokens.txt",
         isPiper: true,
         dataDir: 'espeak-ng-data',
     },
     daniela: {
         label: 'Daniela (Argentina - Alta Calidad)',
-        model: "https://github.com/HectorDanielAyarachiFuentes/voz-sintetizada-prueba/releases/download/v1.0-models/es_AR-daniela-high.onnx",
+        modelChunks: [
+            "daniela/es_AR-daniela-high.onnx.part1",
+            "daniela/es_AR-daniela-high.onnx.part2",
+            "daniela/es_AR-daniela-high.onnx.part3",
+            "daniela/es_AR-daniela-high.onnx.part4"
+        ],
         tokens: "daniela/tokens.txt",
         isPiper: true,
         dataDir: 'espeak-ng-data',
@@ -19,7 +27,12 @@ const VOICES = {
     // Modelo Meta MMS (comment: "mms", frontend: "characters")
     mms_spa: {
         label: 'Español (Meta MMS)',
-        model: "https://github.com/HectorDanielAyarachiFuentes/voz-sintetizada-prueba/releases/download/v1.0-models/vits-mms-spa.onnx",
+        modelChunks: [
+            "vits-mms-spa/vits-mms-spa.onnx.part1",
+            "vits-mms-spa/vits-mms-spa.onnx.part2",
+            "vits-mms-spa/vits-mms-spa.onnx.part3",
+            "vits-mms-spa/vits-mms-spa.onnx.part4"
+        ],
         tokens: "vits-mms-spa/tokens.txt",
         isPiper: false,
         dataDir: '',
@@ -27,7 +40,11 @@ const VOICES = {
     // Modelo en inglés (espeak-ng-data y tokens.txt vienen en el .data)
     test_en: {
         label: 'Voz de Prueba (Inglés - Libritts)',
-        model: "https://github.com/HectorDanielAyarachiFuentes/voz-sintetizada-prueba/releases/download/v1.0-models/en_US-libritts_r-medium.onnx",
+        modelChunks: [
+            "en_US-libritts_r-medium.onnx.part1",
+            "en_US-libritts_r-medium.onnx.part2",
+            "en_US-libritts_r-medium.onnx.part3"
+        ],
         tokens: "tokens.txt",
         isPiper: false,
         dataDir: 'espeak-ng-data',
@@ -57,38 +74,40 @@ function setStatus(msg, cls) {
 }
 
 // Helper para fetch con progreso
-async function fetchWithProgress(url, onProgress) {
-    const response = await fetch(url);
+async function fetchChunksWithProgress(chunks, onProgress) {
+    let totalLength = 0;
+    const chunkResponses = [];
 
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    
-    const contentLength = response.headers.get('content-length');
-    if (!contentLength) {
-        // Si no hay content-length, caemos a fetch normal sin barra pero con el buffer
-        return await response.arrayBuffer();
-    }
-
-    const total = parseInt(contentLength, 10);
-    let loaded = 0;
-
-    const reader = response.body.getReader();
-    const chunks = [];
-    
-    while(true) {
-        const {done, value} = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        loaded += value.length;
-        if (onProgress) onProgress(Math.round((loaded / total) * 100));
-    }
-
-    const allChunks = new Uint8Array(loaded);
-    let position = 0;
+    // Primero obtenemos el tamaño total de todos los chunks
     for (const chunk of chunks) {
-        allChunks.set(chunk, position);
-        position += chunk.length;
+        const res = await fetch(chunk);
+        if (!res.ok) throw new Error(`Error al descargar ${chunk}: ${res.status}`);
+        
+        const contentLength = res.headers.get('content-length');
+        totalLength += contentLength ? parseInt(contentLength) : 30 * 1024 * 1024;
+        chunkResponses.push(res);
     }
-    return allChunks.buffer;
+
+    const fullBuffer = new Uint8Array(totalLength);
+    let receivedLength = 0;
+
+    for (let i = 0; i < chunkResponses.length; i++) {
+        const res = chunkResponses[i];
+        const reader = res.body.getReader();
+
+        while(true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            
+            fullBuffer.set(value, receivedLength);
+            receivedLength += value.length;
+            
+            const percent = ((receivedLength / totalLength) * 100).toFixed(1);
+            onProgress(percent);
+        }
+    }
+
+    return fullBuffer.buffer;
 }
 
 // ── Inicialización del Motor TTS ───────────────────────────────────────────
@@ -126,7 +145,7 @@ async function initTTS() {
             progressBar.style.width = '0%';
             progressPercent.textContent = '0%';
 
-            const modelBuffer = await fetchWithProgress(selected.model, (percent) => {
+            const modelBuffer = await fetchChunksWithProgress(selected.modelChunks, (percent) => {
                 progressBar.style.width = percent + '%';
                 progressPercent.textContent = percent + '%';
                 statusMsg.textContent = `Descargando modelo: ${percent}%`;
@@ -152,7 +171,7 @@ async function initTTS() {
             progressPercent.textContent = '0%';
 
             // Descargar modelo con progreso
-            const modelBuffer = await fetchWithProgress(selected.model, (percent) => {
+            const modelBuffer = await fetchChunksWithProgress(selected.modelChunks, (percent) => {
                 progressBar.style.width = percent + '%';
                 progressPercent.textContent = percent + '%';
                 statusMsg.textContent = `Descargando modelo: ${percent}%`;
