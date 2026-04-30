@@ -75,36 +75,37 @@ function setStatus(msg, cls) {
 
 // Helper para fetch con progreso
 async function fetchChunksWithProgress(chunks, onProgress) {
-    let totalLength = 0;
-    const chunkResponses = [];
+    // Calculamos el tamaño total estimado solo para la barra de progreso
+    const estimatedTotal = chunks.length * 30 * 1024 * 1024; 
+    let receivedLength = 0;
+    
+    const allBuffers = [];
 
-    // Primero obtenemos el tamaño total de todos los chunks
     for (const chunk of chunks) {
         const res = await fetch(chunk);
         if (!res.ok) throw new Error(`Error al descargar ${chunk}: ${res.status}`);
         
-        const contentLength = res.headers.get('content-length');
-        totalLength += contentLength ? parseInt(contentLength) : 30 * 1024 * 1024;
-        chunkResponses.push(res);
-    }
-
-    const fullBuffer = new Uint8Array(totalLength);
-    let receivedLength = 0;
-
-    for (let i = 0; i < chunkResponses.length; i++) {
-        const res = chunkResponses[i];
         const reader = res.body.getReader();
 
         while(true) {
             const {done, value} = await reader.read();
             if (done) break;
             
-            fullBuffer.set(value, receivedLength);
+            allBuffers.push(value);
             receivedLength += value.length;
             
-            const percent = ((receivedLength / totalLength) * 100).toFixed(1);
+            // Limitamos el porcentaje a 99% hasta que termine completamente
+            const percent = Math.min(((receivedLength / estimatedTotal) * 100), 99).toFixed(1);
             onProgress(percent);
         }
+    }
+
+    // Unimos todos los buffers ahora que sabemos el tamaño real exacto
+    const fullBuffer = new Uint8Array(receivedLength);
+    let position = 0;
+    for (const buf of allBuffers) {
+        fullBuffer.set(buf, position);
+        position += buf.length;
     }
 
     return fullBuffer.buffer;
