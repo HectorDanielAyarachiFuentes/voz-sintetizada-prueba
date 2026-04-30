@@ -4,14 +4,14 @@ const VOICES = {
     // Usan la API de Piper con espeak integrado
     claude: {
         label: 'Claude (México - Alta Calidad)',
-        model: "claude/es_MX-claude-high.onnx",
+        model: "https://github.com/HectorDanielAyarachiFuentes/voz-sintetizada-prueba/releases/download/v1.0-models/es_MX-claude-high.onnx",
         tokens: "claude/tokens.txt",
         isPiper: true,
         dataDir: 'espeak-ng-data',
     },
     daniela: {
         label: 'Daniela (Argentina - Alta Calidad)',
-        model: "daniela/es_AR-daniela-high.onnx",
+        model: "https://github.com/HectorDanielAyarachiFuentes/voz-sintetizada-prueba/releases/download/v1.0-models/es_AR-daniela-high.onnx",
         tokens: "daniela/tokens.txt",
         isPiper: true,
         dataDir: 'espeak-ng-data',
@@ -19,7 +19,7 @@ const VOICES = {
     // Modelo Meta MMS (comment: "mms", frontend: "characters")
     mms_spa: {
         label: 'Español (Meta MMS)',
-        model: "vits-mms-spa/model.onnx",
+        model: "https://github.com/HectorDanielAyarachiFuentes/voz-sintetizada-prueba/releases/download/v1.0-models/vits-mms-spa.onnx",
         tokens: "vits-mms-spa/tokens.txt",
         isPiper: false,
         dataDir: '',
@@ -27,7 +27,7 @@ const VOICES = {
     // Modelo en inglés (espeak-ng-data y tokens.txt vienen en el .data)
     test_en: {
         label: 'Voz de Prueba (Inglés - Libritts)',
-        model: "en_US-libritts_r-medium.onnx",
+        model: "https://github.com/HectorDanielAyarachiFuentes/voz-sintetizada-prueba/releases/download/v1.0-models/en_US-libritts_r-medium.onnx",
         tokens: "tokens.txt",
         isPiper: false,
         dataDir: 'espeak-ng-data',
