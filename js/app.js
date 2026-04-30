@@ -99,8 +99,9 @@ async function initTTS() {
     
     // Guardia: no ejecutar si el runtime WASM no está listo
     if (!wasmReady) {
-        console.warn('WASM aún no está listo. Esperando...');
-        setStatus('Esperando al motor WASM...', 'loading');
+        pendingInit = true;
+        console.warn('WASM aún no está listo. Se inicializará al terminar la carga.');
+        setStatus('Descargando motor WASM (~28 MB)...', 'loading');
         return;
     }
 
@@ -133,6 +134,11 @@ async function initTTS() {
 
             progressContainer.style.display = 'none';
 
+            console.log(`Modelo descargado: ${(modelBuffer.byteLength / (1024*1024)).toFixed(2)} MB`);
+            if (modelBuffer.byteLength < 1000) {
+                throw new Error(`Modelo descargado es demasiado pequeño (${modelBuffer.byteLength} bytes). Posible error 404 o archivo no encontrado.`);
+            }
+
             try { Module.FS_unlink(modelPath); } catch(e) {}
             Module.FS_createDataFile("/", modelPath.substring(1), new Uint8Array(modelBuffer), true, true, true);
         } else {
@@ -160,6 +166,12 @@ async function initTTS() {
             progressContainer.style.display = 'none';
             progressBar.style.width = '0%';
             progressPercent.textContent = '0%';
+
+            console.log(`Modelo descargado: ${(modelBuffer.byteLength / (1024*1024)).toFixed(2)} MB`);
+            console.log(`Tokens descargados: ${tokensBuffer.byteLength} bytes`);
+            if (modelBuffer.byteLength < 1000) {
+                throw new Error(`Modelo descargado es demasiado pequeño (${modelBuffer.byteLength} bytes). Verificá la URL: ${selected.model}`);
+            }
 
             // Escribir al VFS
             try { Module.FS_unlink(modelPath); } catch(e) {}
@@ -212,10 +224,18 @@ async function initTTS() {
         btnIcon.textContent = '🎙️';
         setStatus('Motor listo y optimizado ✓', 'ready');
     } catch (err) {
-        setStatus('Error crítico de motor', 'error');
+        setStatus('Error al inicializar motor', 'error');
         btnText.textContent = "Error al cargar";
         btnIcon.textContent = '❌';
-        console.error("Fallo en Sherpa-ONNX:", err);
+        
+        // Las excepciones C++ de WASM llegan como números (punteros)
+        if (typeof err === 'number') {
+            console.error("Fallo en Sherpa-ONNX (excepción C++):", err);
+            console.error("Causa probable: el modelo descargado está corrupto o incompleto.");
+            console.error("Verificá que el archivo .onnx sea accesible en tu servidor web.");
+        } else {
+            console.error("Fallo en Sherpa-ONNX:", err);
+        }
     }
 }
 
@@ -329,8 +349,17 @@ function exportWav(samples, sampleRate) {
     return new Blob([buffer], { type: 'audio/wav' });
 }
 
+let pendingInit = false;
+
 // ── Arranque ───────────────────────────────────────────────────────────────
 if (typeof Module !== 'undefined') {
+    // Mostrar progreso de descarga del .data
+    Module['setStatus'] = (text) => {
+        if (text) {
+            setStatus(text, 'loading');
+        }
+    };
+
     const onReady = () => {
         wasmReady = true;
         console.log('WASM runtime inicializado correctamente.');
